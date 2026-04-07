@@ -9,73 +9,57 @@ const generateRoutes = require("./routes/generate.routes");
 const parserRoutes = require("./routes/parser.routes");
 const proposalRoutes = require("./routes/proposal.routes");
 
+const { swaggerSpec, swaggerUi } = require("./config/swagger");
+const { createMcpServer } = require("./mcp/createMcpServer");
+const { createMcpHttpHandlers } = require("./mcp/httpAdapter");
+
 const app = express();
 
-// Swagger setup
-const { swaggerSpec, swaggerUi } = require("./config/swagger");
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get("/swagger.json", (req, res) => res.json(swaggerSpec));
 
-/**
- * ======================================
- * ENV FLAG: Disable Entra Auth for Dev
- * ======================================
- * Set DISABLE_ENTRA_AUTH=true in local env
- */
 const DISABLE_ENTRA_AUTH = process.env.DISABLE_ENTRA_AUTH === "true";
 
-// CORS config
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:4200",
-  "http://localhost:5173",
-  // "https://<yourapp>.azurewebsites.net"
+  "http://localhost:5173"
 ];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
+    origin(origin, callback) {
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
-      } else {
-        return callback(new Error("CORS not allowed for this origin"), false);
       }
+
+      return callback(new Error("CORS not allowed for this origin"), false);
     },
-    credentials: true,
+    credentials: true
   })
 );
 
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-/**
- * ===========================================
- * Azure App Service Easy Auth Middleware
- * ===========================================
- */
 function requireAuth(req, res, next) {
   if (DISABLE_ENTRA_AUTH) {
-    return next(); // Skip auth check
+    return next();
   }
 
   const principal = req.headers["x-ms-client-principal"];
 
   if (!principal) {
     return res.status(401).json({
-      message: "Unauthorized. Please login using Microsoft Entra ID.",
+      message: "Unauthorized. Please login using Microsoft Entra ID."
     });
   }
 
-  next();
+  return next();
 }
 
-/**
- * =====================================
- * Optional: Get current user info
- * =====================================
- */
 app.get("/api/me", (req, res) => {
   if (DISABLE_ENTRA_AUTH) {
     return res.json({
@@ -83,8 +67,8 @@ app.get("/api/me", (req, res) => {
       message: "Entra Auth Disabled (DEV MODE)",
       user: {
         name: "DEV_USER",
-        roles: ["developer"],
-      },
+        roles: ["developer"]
+      }
     });
   }
 
@@ -98,62 +82,60 @@ app.get("/api/me", (req, res) => {
     const decoded = Buffer.from(principal, "base64").toString("utf8");
     const user = JSON.parse(decoded);
 
-    res.json({
+    return res.json({
       authenticated: true,
-      user,
+      user
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to decode user principal", err });
+    return res.status(500).json({ message: "Failed to decode user principal", err });
   }
 });
 
-/**
- * =====================================
- * Serve UI
- * =====================================
- */
 app.use("/", express.static(path.join(__dirname, "ui")));
 
-/**
- * =====================================
- * Public Health API
- * =====================================
- */
 app.get("/api/health", (req, res) => {
-  res.json({
+  return res.json({
     status: "ok",
     message: "RFP Generator API running",
-    authEnabled: !DISABLE_ENTRA_AUTH,
+    authEnabled: !DISABLE_ENTRA_AUTH
   });
 });
 
-/**
- * =====================================
- * Protected API Routes
- * =====================================
- */
+const routeModules = [
+  uploadRoutes,
+  generateRoutes,
+  parserRoutes,
+  proposalRoutes
+];
+
+const allRegisteredRoutes = routeModules.flatMap((routeModule) => routeModule.routes || []);
+
+const mcpServer = createMcpServer({
+  name: "rfp-demo-mcp",
+  version: "1.0.0",
+  routes: allRegisteredRoutes
+});
+
+const { mcpHandler } = createMcpHttpHandlers({
+  mcpServer,
+  requireAuth
+});
+
+app.all("/mcp", ...mcpHandler);
+
 app.use("/api/upload", requireAuth, uploadRoutes);
 app.use("/api/generate", requireAuth, generateRoutes);
 app.use("/api/parser", requireAuth, parserRoutes);
 app.use("/api/proposals", requireAuth, proposalRoutes);
 
-/**
- * =====================================
- * Fallback route for UI
- * =====================================
- */
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "ui", "index.html"));
 });
 
-/**
- * =====================================
- * Start Server
- * =====================================
- */
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  console.log(
-    `Entra Auth: ${DISABLE_ENTRA_AUTH ? "DISABLED (DEV MODE)" : "ENABLED"}`
-  );
+  console.log(`Entra Auth: ${DISABLE_ENTRA_AUTH ? "DISABLED (DEV MODE)" : "ENABLED"}`);
+  console.log(`Native MCP endpoint available at http://localhost:${PORT}/mcp`);
 });
+
+// Made with Bob
