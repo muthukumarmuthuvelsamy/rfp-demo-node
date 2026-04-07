@@ -26,12 +26,15 @@ const allowedOrigins = [
   "http://localhost:5173"
 ];
 
+// CORS configuration - must be before body parsers
 app.use((req, res, next) => {
   // Allow unrestricted CORS for MCP endpoint
   if (req.path === "/mcp") {
     return cors({
       origin: true,
-      credentials: true
+      credentials: true,
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"]
     })(req, res, next);
   }
 
@@ -50,6 +53,7 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 
+// Body parsers
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -130,13 +134,17 @@ const { mcpHandler } = createMcpHttpHandlers({
   requireAuth
 });
 
-app.all("/mcp", ...mcpHandler);
+// MCP endpoint - must be registered before other routes
+app.post("/mcp", ...mcpHandler);
+app.get("/mcp", ...mcpHandler);
 
+// API routes
 app.use("/api/upload", requireAuth, uploadRoutes);
 app.use("/api/generate", requireAuth, generateRoutes);
 app.use("/api/parser", requireAuth, parserRoutes);
 app.use("/api/proposals", requireAuth, proposalRoutes);
 
+// Catch-all route for SPA - must be last
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "ui", "index.html"));
 });

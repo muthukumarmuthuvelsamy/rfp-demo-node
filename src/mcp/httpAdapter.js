@@ -2,7 +2,13 @@ const { StreamableHTTPServerTransport } = require("@modelcontextprotocol/sdk/ser
 const { MCP_PROXY_TOKEN } = require("../config/env");
 
 function createMcpHttpHandlers({ mcpServer, requireAuth }) {
-  let transport;
+  // Create transport once - it manages connections internally
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined
+  });
+
+  // Connect the MCP server to the transport
+  mcpServer.server.connect(transport);
 
   // Middleware to check MCP proxy token if configured
   const checkMcpToken = (req, res, next) => {
@@ -36,20 +42,16 @@ function createMcpHttpHandlers({ mcpServer, requireAuth }) {
     requireAuth,
     async (req, res) => {
       try {
-        if (!transport) {
-          transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: undefined
-          });
-
-          await mcpServer.server.connect(transport);
-        }
-
-        return await transport.handleRequest(req, res, req.body);
+        // The transport handles the request directly
+        // It manages SSE streaming and JSON-RPC protocol internally
+        await transport.handleRequest(req, res, req.body);
       } catch (error) {
         console.error("MCP transport error:", error);
+        console.error("Error stack:", error.stack);
         if (!res.headersSent) {
           return res.status(500).json({
             error: error.message,
+            stack: error.stack,
             type: "MCP_TRANSPORT_ERROR"
           });
         }
