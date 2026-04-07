@@ -1,3 +1,22 @@
+// MCP tool: List all available MCP tools
+async function listMcpTools(req, res) {
+  // mcpServer is not available here, so we pass the list via req or global
+  if (req.mcpServer && typeof req.mcpServer.listTools === 'function') {
+    const tools = req.mcpServer.listTools();
+    res.json({ tools });
+  } else {
+    res.status(500).json({ error: 'MCP server not available in request context' });
+  }
+}
+// Hello World MCP tool handler (connect from MCP inspector)
+async function helloWorldMcp(req, res) {
+  // If an MCP inspector/interceptor is present, connect and respond
+  if (req.mcpInspectorConnect) {
+    await req.mcpInspectorConnect(req, res);
+    return;
+  }
+  res.json({ message: "Connected from MCP inspector!" });
+}
 const {
   extractTextFromFileBuffer,
   parseRFP,
@@ -61,6 +80,8 @@ module.exports = {
   parseRFPText,
   parseRFPFromBlob,
   checkRFPCompliance
+  ,helloWorldMcp
+  ,listMcpTools
 };
 
 // Made with Bob

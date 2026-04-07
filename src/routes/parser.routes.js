@@ -1,7 +1,9 @@
 const {
   parseRFPText,
   parseRFPFromBlob,
-  checkRFPCompliance
+  checkRFPCompliance,
+  helloWorldMcp,
+  listMcpTools
 } = require("../controllers/parser.controller");
 const { createRegisteredRouter, defineRoute } = require("../mcp/routeRegistry");
 
@@ -26,6 +28,40 @@ const { router, routes } = createRegisteredRouter("/api/parser", [
         company: { type: "string", description: "Issuing company or organization" },
         criteria: { type: "array", description: "Key evaluation criteria" },
         deadlines: { type: "array", description: "Important deadlines" }
+      }
+    }
+  }),
+  defineRoute({
+    method: "post",
+    path: "/hello-mcp",
+    handler: helloWorldMcp,
+    mcp: {
+      name: "hello_world_mcp",
+      description: "A simple Hello World MCP tool for testing and interception.",
+      input: {
+        body: {
+          name: {
+            type: "string",
+            required: false,
+            description: "Optional name to greet."
+          }
+        }
+      },
+      output: {
+        message: { type: "string", description: "Hello world message." }
+      }
+    }
+  }),
+  defineRoute({
+    method: "get",
+    path: "/mcp-tools-list",
+    handler: listMcpTools,
+    mcp: {
+      name: "list_mcp_tools",
+      description: "List all available MCP tools.",
+      input: {},
+      output: {
+        tools: { type: "array", description: "Array of available MCP tools." }
       }
     }
   }),

@@ -1,3 +1,4 @@
+
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -23,7 +24,8 @@ const DISABLE_ENTRA_AUTH = process.env.DISABLE_ENTRA_AUTH === "true";
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:4200",
-  "http://localhost:5173"
+  "http://localhost:5173",
+  "http://localhost:6274"
 ];
 
 // CORS configuration - must be before body parsers
@@ -129,10 +131,28 @@ const mcpServer = createMcpServer({
   routes: allRegisteredRoutes
 });
 
+// Middleware to inject mcpServer into req for MCP tool handlers
+app.use((req, res, next) => {
+  req.mcpServer = mcpServer;
+  next();
+});
+
+
 const { mcpHandler } = createMcpHttpHandlers({
   mcpServer,
   requireAuth
 });
+
+// List available MCP tools
+app.get("/tools/list", (req, res) => {
+  try {
+    const tools = mcpServer.listTools();
+    res.json({ tools });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // MCP endpoint - must be registered before other routes
 app.post("/mcp", ...mcpHandler);
