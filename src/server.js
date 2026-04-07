@@ -26,8 +26,17 @@ const allowedOrigins = [
   "http://localhost:5173"
 ];
 
-app.use(
-  cors({
+app.use((req, res, next) => {
+  // Allow unrestricted CORS for MCP endpoint
+  if (req.path === "/mcp") {
+    return cors({
+      origin: true,
+      credentials: true
+    })(req, res, next);
+  }
+
+  // Strict CORS for other endpoints
+  return cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
 
@@ -38,8 +47,8 @@ app.use(
       return callback(new Error("CORS not allowed for this origin"), false);
     },
     credentials: true
-  })
-);
+  })(req, res, next);
+});
 
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -136,6 +145,13 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Entra Auth: ${DISABLE_ENTRA_AUTH ? "DISABLED (DEV MODE)" : "ENABLED"}`);
   console.log(`Native MCP endpoint available at http://localhost:${PORT}/mcp`);
+  
+  const { MCP_PROXY_TOKEN } = require("./config/env");
+  if (MCP_PROXY_TOKEN) {
+    console.log(`MCP Proxy Token: ENABLED (use Bearer token in Authorization header)`);
+  } else {
+    console.log(`MCP Proxy Token: DISABLED (no token required)`);
+  }
 });
 
 // Made with Bob
