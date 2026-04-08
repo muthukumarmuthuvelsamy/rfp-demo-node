@@ -113,11 +113,60 @@ async function generateProposal() {
     setTimeout(() => {
       document.getElementById("generateResult").textContent = JSON.stringify(data, null, 2);
       hideLoader("generateLoader", "generateBtn");
+      
+      // Enable action buttons after successful proposal generation
+      document.getElementById("downloadBtn").disabled = false;
+      document.getElementById("sendEmailBtn").disabled = false;
     }, 500);
     
   } catch (error) {
     clearInterval(progressTimer);
     hideLoader("generateLoader", "generateBtn");
     alert("Generation failed: " + error.message);
+  }
+}
+
+async function downloadProposal() {
+  try {
+    // Disable button during download
+    const downloadBtn = document.getElementById("downloadBtn");
+    downloadBtn.disabled = true;
+    downloadBtn.innerHTML = '<span class="btn-icon">⏳</span> Downloading...';
+
+    const res = await fetch("/api/download/proposal", {
+      method: "GET"
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || "Download failed");
+    }
+
+    // Get the blob from response
+    const blob = await res.blob();
+    
+    // Create a download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `proposal-${Date.now()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Cleanup
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    // Re-enable button
+    downloadBtn.disabled = false;
+    downloadBtn.innerHTML = '<span class="btn-icon">⬇️</span> Download';
+
+  } catch (error) {
+    alert("Download failed: " + error.message);
+    
+    // Re-enable button
+    const downloadBtn = document.getElementById("downloadBtn");
+    downloadBtn.disabled = false;
+    downloadBtn.innerHTML = '<span class="btn-icon">⬇️</span> Download';
   }
 }
